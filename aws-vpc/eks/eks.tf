@@ -75,6 +75,140 @@ resource "aws_iam_policy" "autoscaler" {
 EOF
 
 }
+resource "aws_iam_policy" "ebs-policy" {
+  name   = "event-planing-eks-ebs-policy"
+  policy = <<EOF
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Effect": "Allow",
+            "Action": [
+                "ec2:DescribeInstances",
+                "ec2:DescribeSnapshots",
+                "ec2:DescribeTags",
+                "ec2:DescribeVolumes",
+                "ec2:DescribeVolumesModifications"
+            ],
+            "Resource": "*"
+        },
+	{
+            "Action": "ec2:*",
+            "Effect": "Allow",
+            "Resource": "*"
+        },
+        {
+            "Effect": "Allow",
+            "Action": [
+                "ec2:AttachVolume",
+                "ec2:DetachVolume"
+            ],
+            "Resource": [
+                "arn:aws:ec2:*:*:instance/*",
+                "arn:aws:ec2:*:*:volume/*"
+            ],
+            "Condition": {
+                "StringEquals": {
+                    "aws:ResourceTag/red-hat-managed": "true"
+                }
+            }
+        },
+        {
+            "Effect": "Allow",
+            "Action": [
+                "ec2:DeleteVolume",
+                "ec2:ModifyVolume"
+            ],
+            "Resource": [
+                "arn:aws:ec2:*:*:volume/*"
+            ],
+            "Condition": {
+                "StringEquals": {
+                    "aws:ResourceTag/red-hat-managed": "true"
+                }
+            }
+        },
+        {
+            "Effect": "Allow",
+            "Action": [
+                "ec2:CreateVolume"
+            ],
+            "Resource": [
+                "arn:aws:ec2:*:*:volume/*"
+            ],
+            "Condition": {
+                "StringEquals": {
+                    "aws:RequestTag/red-hat-managed": "true"
+                }
+            }
+        },
+        {
+            "Sid": "CreateSnapshotResourceTag",
+            "Effect": "Allow",
+            "Action": [
+                "ec2:CreateSnapshot"
+            ],
+            "Resource": [
+                "arn:aws:ec2:*:*:volume/*"
+            ],
+            "Condition": {
+                "StringEquals": {
+                    "aws:ResourceTag/red-hat-managed": "true"
+                }
+            }
+        },
+        {
+            "Sid": "CreateSnapshotRequestTag",
+            "Effect": "Allow",
+            "Action": [
+                "ec2:CreateSnapshot"
+            ],
+            "Resource": [
+                "arn:aws:ec2:*:*:snapshot/*"
+            ],
+            "Condition": {
+                "StringEquals": {
+                    "aws:RequestTag/red-hat-managed": "true"
+                }
+            }
+        },
+        {
+            "Effect": "Allow",
+            "Action": [
+                "ec2:DeleteSnapshot"
+            ],
+            "Resource": [
+                "arn:aws:ec2:*:*:snapshot/*"
+            ],
+            "Condition": {
+                "StringEquals": {
+                    "aws:ResourceTag/red-hat-managed": "true"
+                }
+            }
+        },
+        {
+            "Effect": "Allow",
+            "Action": [
+                "ec2:CreateTags"
+            ],
+            "Resource": [
+                "arn:aws:ec2:*:*:volume/*",
+                "arn:aws:ec2:*:*:snapshot/*"
+            ],
+            "Condition": {
+                "StringEquals": {
+                    "ec2:CreateAction": [
+                        "CreateVolume",
+                        "CreateSnapshot"
+                    ]
+                }
+            }
+        }
+    ]
+}
+EOF
+
+}
 
 resource "aws_iam_role_policy_attachment" "AmazonEKSWorkerNodePolicy" {
   policy_arn = "arn:aws:iam::aws:policy/AmazonEKSWorkerNodePolicy"
@@ -107,6 +241,11 @@ resource "aws_iam_role_policy_attachment" "s3" {
 
 resource "aws_iam_role_policy_attachment" "autoscaler" {
   policy_arn = aws_iam_policy.autoscaler.arn
+  role       = aws_iam_role.eks_worker.name
+}
+
+resource "aws_iam_role_policy_attachment" "ebs-policy" {
+  policy_arn = aws_iam_policy.ebs-policy.arn
   role       = aws_iam_role.eks_worker.name
 }
 
@@ -144,7 +283,7 @@ resource "aws_eks_node_group" "event-planing-ng" {
   subnet_ids = [var.subnet_ids[0],var.subnet_ids[1]]
   capacity_type = "ON_DEMAND"
   disk_size = "10"
-  instance_types = ["t2.micro"]
+  instance_types = ["t2.medium"]
   remote_access {
     ec2_ssh_key = "my-jenkins"
     source_security_group_ids = [var.sg_ids]
@@ -153,7 +292,7 @@ resource "aws_eks_node_group" "event-planing-ng" {
   labels =  tomap({env = "event-planing"})
   
   scaling_config {
-    desired_size = 2
+    desired_size = 3
     max_size     = 3
     min_size     = 1
   }
