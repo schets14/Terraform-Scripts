@@ -5,7 +5,7 @@ resource "aws_vpc" "eks_vpc" {
     Name = "eks_vpc"
   }
 }
-#public subnet
+#public subnets
 resource "aws_subnet" "eks_public_subnet-1" {
   vpc_id = aws_vpc.eks_vpc.id
   cidr_block = var.public_sub1_cidr
